@@ -1,0 +1,30 @@
+[package]
+name = "mlx-rust-sys"
+description = "Raw FFI bindings to mlx-c"
+build = "build.rs"
+# Lets cargo detect duplicate native-library links and exposes DEP_MLXC_* vars
+# (metallib path, include dir) to downstream build scripts.
+links = "mlxc"
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = ["metal"]
+# Build MLX's Metal backend and compile the .metallib. Without this MLX
+# substitutes no_metal.cpp and mlx_metal_is_available() returns false.
+metal = []
+# MLX_METAL_JIT=ON. Moves quantized/fp_quantized/NAX kernels out of the AOT
+# metallib and into runtime compilation -- i.e. it moves our subject under test.
+# Opt-in for iteration only; build.rs warns when it is on.
+# Implies `metal`: a JIT setting means nothing without the Metal backend, and
+# without this `--no-default-features --features metal-jit` would build neither.
+metal-jit = ["metal"]
+
+[build-dependencies]
+bindgen = { workspace = true }
+cmake = { workspace = true }
+walkdir = { workspace = true }

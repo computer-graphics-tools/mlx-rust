@@ -1,0 +1,6 @@
+[submodule "mlx-c"]
+	path = mlx-c
+	url = https://github.com/ml-explore/mlx-c.git
+[submodule "mlx"]
+	path = mlx
+	url = https://github.com/ml-explore/mlx.git

@@ -1,1 +1,1 @@
-# mlx-rs
+# mlx-rust

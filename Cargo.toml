@@ -1,0 +1,52 @@
+[workspace]
+members = [
+    "crates/mlx-rust-sys",
+    "crates/mlx-rust",
+    "crates/mlx-rust-macros",
+]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.94"
+version = "0.1.0"
+authors = ["Eugene Bokhan <eugenebokhan@icloud.com>"]
+license = "MIT"
+repository = "https://github.com/computer-graphics-tools/mlx-rust"
+readme = "README.md"
+
+[workspace.lints.rust]
+missing_docs = "warn"
+# The crate is one big FFI surface; every `unsafe` block should say so itself
+# rather than inheriting it from an `unsafe fn` signature.
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+undocumented_unsafe_blocks = "allow"
+
+[workspace.dependencies]
+# default-features = false is load-bearing: mlx-rust-sys defaults to ["metal"],
+# so without it mlx-rust's own `metal` feature is decorative -- disabling it
+# would strip `metal::metallib_path` while MLX still built its Metal backend.
+# Members opt back in through their own `metal` feature.
+mlx-rust-sys = { path = "crates/mlx-rust-sys", version = "0.1.0", default-features = false }
+mlx-rust-macros = { path = "crates/mlx-rust-macros", version = "0.1.0" }
+
+half = { version = "2.7", features = ["bytemuck", "num-traits"] }
+thiserror = "2"
+
+syn = { version = "2", features = ["full"] }
+quote = "1"
+proc-macro2 = "1"
+
+bindgen = "0.72"
+cmake = "0.1"
+walkdir = "2.5"
+
+[profile.dev]
+opt-level = 1
+
+# MLX is only usable at -O2+; a debug build of it makes every measurement a lie.
+[profile.dev.package."*"]
+opt-level = 2

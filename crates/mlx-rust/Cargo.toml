@@ -1,0 +1,29 @@
+[package]
+name = "mlx-rust"
+description = "Safe Rust bindings to MLX, scoped to quantized GEMM benchmarking"
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+
+[lib]
+name = "mlx"
+
+[features]
+default = ["metal"]
+metal = ["mlx-rust-sys/metal"]
+# Implies `metal`, mirroring mlx-rust-sys: a JIT setting is meaningless without it.
+metal-jit = ["metal", "mlx-rust-sys/metal-jit"]
+
+[dependencies]
+# Inherits default-features = false; the `metal` feature below opts back in.
+mlx-rust-sys = { workspace = true }
+mlx-rust-macros = { workspace = true }
+half = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true
