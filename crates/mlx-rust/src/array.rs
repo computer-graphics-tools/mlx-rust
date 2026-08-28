@@ -106,6 +106,19 @@ impl Array {
         Ok(Array::from_handle(handle))
     }
 
+    /// Another handle to the same array.
+    ///
+    /// MLX arrays are refcounted, so this shares the buffer rather than copying
+    /// it. Not `Clone`, to keep that explicit at the call site.
+    pub fn clone_handle(&self) -> Array {
+        let mut copy = Array::empty();
+        // `mlx_array_set` assigns through the existing ctx.
+        let _ = check(|| unsafe {
+            mlx_rust_sys::mlx_array_set(&mut copy.handle, self.handle)
+        });
+        copy
+    }
+
     /// This array's element type.
     pub fn dtype(&self) -> Result<Dtype> {
         Dtype::from_raw(unsafe { mlx_rust_sys::mlx_array_dtype(self.handle) }.0)

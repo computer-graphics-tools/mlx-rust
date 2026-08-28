@@ -23,14 +23,15 @@ use syn::{Attribute, FnArg, ItemFn, Pat, spanned::Spanned};
 /// exists to fall back on, so a stray marker is an error rather than a no-op.
 #[proc_macro_attribute]
 pub fn default_device(
-    _attr: TokenStream,
+    attr: TokenStream,
     item: TokenStream,
 ) -> TokenStream {
+    let on_cpu = attr.to_string().trim() == "cpu";
     let mut func = match syn::parse::<ItemFn>(item) {
         Ok(func) => func,
         Err(err) => return err.to_compile_error().into(),
     };
-    let twin = match build_twin(&func) {
+    let twin = match build_twin(&func, on_cpu) {
         Ok(twin) => twin,
         Err(err) => return err.to_compile_error().into(),
     };
@@ -38,7 +39,10 @@ pub fn default_device(
     quote! { #func #twin }.into()
 }
 
-fn build_twin(func: &ItemFn) -> syn::Result<proc_macro2::TokenStream> {
+fn build_twin(
+    func: &ItemFn,
+    on_cpu: bool,
+) -> syn::Result<proc_macro2::TokenStream> {
     let signature = &func.sig;
 
     let base_name = signature
@@ -90,6 +94,11 @@ fn build_twin(func: &ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         .into_iter()
         .chain(params.map(|arg| quote! { #arg, }));
 
+    let with_default = if on_cpu {
+        quote! { crate::Stream::with_default_cpu }
+    } else {
+        quote! { crate::Stream::with_default }
+    };
     let vis = &func.vis;
     let attrs = forwarded_attrs(&func.attrs);
     let generics = &signature.generics;
@@ -102,7 +111,7 @@ fn build_twin(func: &ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         #vis fn #twin_name #generics (#(#signature_params)*) #output
         #where_clause
         {
-            crate::Stream::with_default(|stream| #call)
+            #with_default(|stream| #call)
         }
     })
 }
@@ -346,4 +355,155 @@ fn upper_camel(snake: &str) -> String {
             }
         })
         .collect()
+}
+
+/// Derive [`ModuleParameters`] by walking the fields marked `#[param]`.
+///
+/// Rust cannot enumerate fields at runtime, so parameters are declared. Only
+/// `#[param]` fields are visited; everything else is treated as configuration.
+///
+/// ```ignore
+/// #[derive(Debug, ModuleParameters)]
+/// pub struct Linear {
+///     #[param] pub weight: Param<Array>,
+///     #[param] pub bias: Param<Option<Array>>,
+///     pub in_features: i32,
+/// }
+/// ```
+#[proc_macro_derive(ModuleParameters, attributes(param))]
+pub fn derive_module_parameters(item: TokenStream) -> TokenStream {
+    let input = match syn::parse::<syn::DeriveInput>(item) {
+        Ok(input) => input,
+        Err(err) => return err.to_compile_error().into(),
+    };
+    match build_module_parameters(&input) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
+    }
+}
+
+fn build_module_parameters(
+    input: &syn::DeriveInput
+) -> syn::Result<proc_macro2::TokenStream> {
+    let syn::Data::Struct(data) = &input.data else {
+        return Err(syn::Error::new_spanned(
+            input,
+            "ModuleParameters can only be derived for structs",
+        ));
+    };
+
+    let fields: Vec<&syn::Ident> = data
+        .fields
+        .iter()
+        .filter(|field| {
+            field.attrs.iter().any(|attr| attr.path().is_ident("param"))
+        })
+        .map(|field| {
+            field.ident.as_ref().ok_or_else(|| {
+                syn::Error::new_spanned(
+                    field,
+                    "#[param] needs a named field; tuple structs are not supported",
+                )
+            })
+        })
+        .collect::<syn::Result<_>>()?;
+
+    let name = &input.ident;
+    let (impl_generics, type_generics, where_clause) =
+        input.generics.split_for_impl();
+    let names = fields.iter().map(|field| field.to_string());
+    let names_again = names.clone();
+    let names_trainable = names.clone();
+
+    Ok(quote! {
+        impl #impl_generics ::mlx::module::ModuleParameters
+            for #name #type_generics #where_clause
+        {
+            fn parameters(&self) -> ::mlx::module::ModuleParamRef<'_> {
+                let mut tree = ::mlx::module::NestedMap::new();
+                #(
+                    tree.insert(
+                        #names,
+                        ::mlx::module::Parameter::as_nested_value(
+                            &self.#fields,
+                        ),
+                    );
+                )*
+                tree
+            }
+
+            fn parameters_mut(&mut self) -> ::mlx::module::ModuleParamMut<'_> {
+                let mut tree = ::mlx::module::NestedMap::new();
+                #(
+                    tree.insert(
+                        #names_again,
+                        ::mlx::module::Parameter::as_nested_value_mut(
+                            &mut self.#fields,
+                        ),
+                    );
+                )*
+                tree
+            }
+
+            fn trainable_parameters(&self) -> ::mlx::module::ModuleParamRef<'_> {
+                let mut tree = ::mlx::module::NestedMap::new();
+                #(
+                    if let Some(value) =
+                        ::mlx::module::Parameter::as_trainable_nested_value(
+                            &self.#fields,
+                        )
+                    {
+                        tree.insert(#names_trainable, value);
+                    }
+                )*
+                tree
+            }
+
+            fn freeze_parameters(&mut self, recursive: bool) {
+                #(
+                    ::mlx::module::Parameter::freeze(
+                        &mut self.#fields,
+                        recursive,
+                    );
+                )*
+            }
+
+            fn unfreeze_parameters(&mut self, recursive: bool) {
+                #(
+                    ::mlx::module::Parameter::unfreeze(
+                        &mut self.#fields,
+                        recursive,
+                    );
+                )*
+            }
+
+            fn all_frozen(&self) -> Option<bool> {
+                let mut seen = false;
+                #(
+                    match ::mlx::module::Parameter::is_frozen(&self.#fields) {
+                        Some(false) => return Some(false),
+                        Some(true) => seen = true,
+                        None => {},
+                    }
+                )*
+                seen.then_some(true)
+            }
+
+            fn any_frozen(&self) -> Option<bool> {
+                let mut seen = false;
+                #(
+                    match ::mlx::module::Parameter::is_frozen(&self.#fields) {
+                        Some(true) => return Some(true),
+                        Some(false) => seen = true,
+                        None => {},
+                    }
+                )*
+                seen.then_some(false)
+            }
+
+            fn num_parameters(&self) -> usize {
+                0 #( + ::mlx::module::Parameter::count(&self.#fields) )*
+            }
+        }
+    })
 }

@@ -1,10 +1,8 @@
-//! Safe Rust bindings to [MLX](https://github.com/ml-explore/mlx), scoped to
-//! quantized-GEMM benchmarking.
+//! Safe Rust bindings to [MLX](https://github.com/ml-explore/mlx).
 //!
-//! This is deliberately not a general framework binding: there are no neural
-//! network modules, optimizers, or autodiff. It exposes just enough to build
-//! quantized weights, run `quantized_matmul` / `gather_qmm` against them, and
-//! measure the result honestly.
+//! The raw FFI in `mlx-rust-sys` covers all of mlx-c. This safe layer currently
+//! wraps the array, quantization and stream surface; the remaining ops, plus
+//! autodiff, `nn` and optimizers, are still to come.
 //!
 //! ```no_run
 //! use mlx::{Array, ops};
@@ -51,18 +49,38 @@
 //! reversed slice needs [`Array::contiguous`] first; the quantized ops already
 //! return contiguous arrays.
 
+// So the paths `#[derive(ModuleParameters)]` emits resolve inside this crate as
+// well as in a dependent one.
+extern crate self as mlx;
+
 /// Owned MLX arrays and host transfers.
 pub mod array;
 /// Element types and the mapping to MLX's `mlx_dtype`.
 pub mod dtype;
 /// Error type and mlx-c error-handler installation.
 pub mod error;
+/// Fused kernels, mirroring `mlx.core.fast`.
+pub mod fast;
+/// Fast Fourier transforms, mirroring `mlx.core.fft`.
+pub mod fft;
+/// Saving and loading arrays.
+pub mod io;
+/// Linear algebra, mirroring `mlx.core.linalg`.
+pub mod linalg;
 /// Metal backend capability probing, capture, and allocator statistics.
 pub mod metal;
-/// The quantized and elementwise operations this crate exposes.
+/// Modules and their parameters.
+pub mod module;
+/// `std::ops` impls for [`Array`].
+pub mod operators;
+/// Operations on arrays, mirroring `mlx.core`.
 pub mod ops;
+/// Pseudo-random arrays, mirroring `mlx.random`.
+pub mod random;
 /// MLX execution streams.
 pub mod stream;
+/// Function transformations: `grad`, `value_and_grad`, `vjp`, `jvp`.
+pub mod transforms;
 
 pub use array::{Array, eval_all};
 pub use dtype::{Dtype, Element};

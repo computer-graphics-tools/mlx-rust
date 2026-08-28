@@ -1,4 +1,5 @@
 use half::{bf16, f16};
+use num_complex::Complex32;
 
 use crate::error::{Error, Result};
 
@@ -94,6 +95,7 @@ macro_rules! element {
     };
 }
 
+element!(bool, Dtype::Bool, mlx_array_data_bool, bool);
 element!(u8, Dtype::Uint8, mlx_array_data_uint8, u8);
 element!(u16, Dtype::Uint16, mlx_array_data_uint16, u16);
 element!(u32, Dtype::Uint32, mlx_array_data_uint32, u32);
@@ -110,4 +112,12 @@ element!(
     Dtype::Bfloat16,
     mlx_array_data_bfloat16,
     mlx_rust_sys::bfloat16_t
+);
+// `Complex32` and mlx-c's `__BindgenComplex<f32>` are both `#[repr(C)] {re, im}`;
+// the width assertion above proves it.
+element!(
+    Complex32,
+    Dtype::Complex64,
+    mlx_array_data_complex64,
+    mlx_rust_sys::mlx_complex64_t
 );
