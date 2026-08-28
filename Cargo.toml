@@ -11,7 +11,7 @@ edition = "2024"
 rust-version = "1.94"
 version = "0.1.0"
 authors = ["Eugene Bokhan <eugenebokhan@icloud.com>"]
-license = "MIT"
+license = "MIT OR Apache-2.0"
 repository = "https://github.com/computer-graphics-tools/mlx-rust"
 readme = "README.md"
 
@@ -35,6 +35,20 @@ mlx-rust-macros = { path = "crates/mlx-rust-macros", version = "0.1.0" }
 
 half = { version = "2.7", features = ["bytemuck", "num-traits"] }
 thiserror = "2"
+
+# Parameter trees in insertion order, so checkpoints and optimizer state are
+# reproducible; `HashMap` iteration order is not.
+indexmap = "2"
+# `Dtype::Complex64` needs a host-side element type; `Complex<f32>` is layout
+# compatible with `mlx_complex64_t`.
+num-complex = "0.4"
+# `Sequential` holds `Box<dyn UnaryModule>` and must stay `Clone`.
+dyn-clone = "1"
+
+# MLX's Python tests are `itertools.product`-parameterized and float-comparison
+# based; these keep the ports reading like the originals.
+rstest = "0.23"
+approx = "0.5"
 
 syn = { version = "2", features = ["full"] }
 quote = "1"

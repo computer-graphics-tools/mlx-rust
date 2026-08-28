@@ -1,6 +1,6 @@
 [package]
 name = "mlx-rust"
-description = "Safe Rust bindings to MLX, scoped to quantized GEMM benchmarking"
+description = "Safe Rust bindings to MLX"
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
@@ -24,6 +24,13 @@ mlx-rust-sys = { workspace = true }
 mlx-rust-macros = { workspace = true }
 half = { workspace = true }
 thiserror = { workspace = true }
+indexmap = { workspace = true }
+num-complex = { workspace = true }
+dyn-clone = { workspace = true }
+
+[dev-dependencies]
+rstest = { workspace = true }
+approx = { workspace = true }
 
 [lints]
 workspace = true

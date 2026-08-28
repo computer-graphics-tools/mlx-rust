@@ -1,0 +1,21 @@
+mlx-rust
+Copyright (c) 2026 Computer Graphics Tools
+
+This product includes software adapted from mlx-rs
+(https://github.com/oxiglade/mlx-rs), dual-licensed under the MIT license and
+the Apache License, Version 2.0. Copyright (c) the mlx-rs authors.
+
+The following parts of crates/mlx-rust are adapted from that project, with
+modifications:
+
+  src/module/       the parameter tree, `Param<T>` and the `Module` traits
+  src/nn/           the layer set
+  src/optimizers/   the optimizer set
+
+Modifications include keying parameter trees by insertion order (`indexmap`)
+rather than `HashMap`, so that checkpoint and optimizer-state output is
+reproducible.
+
+mlx-rust also links MLX (https://github.com/ml-explore/mlx) and mlx-c
+(https://github.com/ml-explore/mlx-c), both Copyright (c) Apple Inc., licensed
+under the MIT license.
