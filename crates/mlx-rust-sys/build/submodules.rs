@@ -22,6 +22,7 @@ fn resolve_source_tree(
     submodule: &Path,
     validate: fn(&Path) -> bool,
     what: &str,
+    repo_root: &Path,
 ) -> PathBuf {
     println!("cargo::rerun-if-env-changed={env_var}");
     if let Ok(override_path) = env::var(env_var) {
@@ -36,13 +37,52 @@ fn resolve_source_tree(
     }
     if !validate(submodule) {
         panic!(
-            "The {what} submodule is not initialized at {}.\n\
-             Run `git submodule update --init` in the mlx-rust repo, or set \
-             {env_var} to a checked-out {what} repo root.",
-            submodule.display()
+            "{}",
+            missing_submodule_message(env_var, what, submodule, repo_root)
         );
     }
     submodule.to_path_buf()
+}
+
+/// Why `what` is missing, and what to do about it. Told apart by what is on disk,
+/// since each case needs different advice.
+fn missing_submodule_message(
+    env_var: &str,
+    what: &str,
+    submodule: &Path,
+    repo_root: &Path,
+) -> String {
+    // No .gitmodules: not a checkout of this repo, so a registry or vendored
+    // build. MLX is too large to ship in the published crate.
+    if !repo_root.join(".gitmodules").exists() {
+        return format!(
+            "Cannot find the {what} sources, and {} is not an mlx-rust \
+             checkout.\n\
+             Set {env_var} to a {what} checkout, or depend on the repository, \
+             which does fetch the submodules:\n\n    \
+             mlx-rust = {{ git = \
+             \"https://github.com/computer-graphics-tools/mlx-rust\" }}\n",
+            repo_root.display(),
+        );
+    }
+    if repo_root.join(".git").exists() {
+        return format!(
+            "The {what} submodule is not initialized at {}.\n\
+             Run `git submodule update --init --recursive`, or set {env_var} to \
+             a checked-out {what} repo root.",
+            submodule.display(),
+        );
+    }
+    // .gitmodules but no .git: a source archive. Those omit submodules, and the
+    // pinned revisions live in git's index, so there is nothing to repair.
+    format!(
+        "{} is an extracted archive, not a clone, so {what} is empty at {}.\n\
+         GitHub archives omit submodules -- clone instead:\n\n    \
+         git clone --recurse-submodules \
+         https://github.com/computer-graphics-tools/mlx-rust\n",
+        repo_root.display(),
+        submodule.display(),
+    )
 }
 
 /// Stable CMake root, deliberately outside OUT_DIR, which cargo invalidates on
@@ -114,12 +154,14 @@ pub fn collect_build_context() -> BuildContext {
         &repo_root.join("mlx-c"),
         looks_like_mlx_c_repo_root,
         "mlx-c",
+        &repo_root,
     );
     let mlx_src_dir = resolve_source_tree(
         "MLX_SRC_DIR",
         &repo_root.join("mlx"),
         looks_like_mlx_repo_root,
         "mlx",
+        &repo_root,
     );
 
     // Rebuild when either upstream changes, but do not watch the whole tree --
